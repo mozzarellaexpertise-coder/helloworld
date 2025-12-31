@@ -41,7 +41,7 @@ app.post("/api/test-insert", (req, res) => {
 });
 
 // --- Health check ---
-app.get("/", (req, res) => res.send("DB test server alive 🦏"));
+app.get("/", (req, res) => res.send("Server is running for Pager King Backend"));
 
 // --- Start server ---
 app.listen(PORT, "0.0.0.0", () => {
