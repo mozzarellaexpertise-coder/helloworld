@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-fruits = ['apple', 'banana', 'orange'];
+const fruits = ['apple', 'banana', 'orange'];
 
 const app = express();
 app.use(express.json());
@@ -32,8 +32,19 @@ app.post("/api/test-insert", async (req, res) => {
 });
 
 app.get("/api/fruits", async (req, res) => {
-res.json({ fruits });
+  // This line asks Supabase for everything in the fruits table
+  const { data, error } = await supabase
+    .from('fruits')
+    .select('*');
+
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+
+  // This returns the REAL data you just inserted with SQL!
+  res.json({ source: "Supabase Database", fruits: data });
 });
+
 // --- Health check ---
 app.get("/", (req, res) => res.send("Server is running with Supabase!"));
 
