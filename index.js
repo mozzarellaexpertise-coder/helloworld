@@ -1,5 +1,5 @@
 import express from "express";
-import mysql from "mysql2";
+import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -9,41 +9,29 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// --- MySQL connection ---
-const db = mysql.createConnection({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME
-});
-
-db.connect(err => {
-  if (err) {
-    console.error("⚠️ DB connection failed:", err.message);
-  } else {
-    console.log("✅ MySQL connected");
-  }
-});
+// --- Initialize Supabase ---
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
 
 // --- Test insert route ---
-app.post("/api/test-insert", (req, res) => {
+app.post("/api/test-insert", async (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: "name required" });
 
-  db.query(
-    "INSERT INTO test_table (name) VALUES (?)",
-    [name],
-    (err, results) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ message: "Inserted successfully!", id: results.insertId });
-    }
-  );
+  const { data, error } = await supabase
+    .from('fruits')
+    .insert([{ name }])
+    .select();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ message: "Big Apple New York!", data });
 });
 
 // --- Health check ---
-app.get("/", (req, res) => res.send("Server is running for Pager King Backend"));
+app.get("/", (req, res) => res.send("Server is running with Supabase!"));
 
-// --- Start server ---
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
