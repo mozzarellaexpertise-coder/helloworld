@@ -4,6 +4,8 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+fruits = ['apple', 'banana', 'orange'];
+
 const app = express();
 app.use(express.json());
 
@@ -29,6 +31,9 @@ app.post("/api/test-insert", async (req, res) => {
   res.json({ message: "Big Apple New York!", data });
 });
 
+app.get("/api/fruits", async (req, res) => {
+res.json({ fruits });
+});
 // --- Health check ---
 app.get("/", (req, res) => res.send("Server is running with Supabase!"));
 
