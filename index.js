@@ -1,103 +1,77 @@
 import express from "express";
 import { createClient } from "@supabase/supabase-js";
-import dotenv from "dotenv";
 import admin from 'firebase-admin';
 import { readFileSync } from 'fs';
 
-dotenv.config();
+// 1. FIREBASE CONFIG
+const keyPath = '/home/u967580869/domains/plum-antelope-651151.hostingersite.com/public_html/firebase-key.json';
+const serviceAccount = JSON.parse(readFileSync(keyPath, 'utf8'));
 
-// 1. Initialize Firebase Admin
-const serviceAccount = JSON.parse(
-  readFileSync(new URL('./firebase-key.json', import.meta.url))
-);
+if (!admin.apps.length) {
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+    });
+}
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+// 2. SUPABASE CONFIG - USE YOUR SERVICE_ROLE KEY HERE
+const SUPABASE_URL = 'https://uygdeyofmqhfnpyrqtpf.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5Z2RleW9mbXFoZm5weXJxdHBmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2Njc4MjYzMywiZXhwIjoyMDgyMzU4NjMzfQ.Xs9JJx4QcNp-6T531Kf1CuV7pQg-tD0af79LQtNwEvM'; 
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
 });
 
 const app = express();
 app.use(express.json());
 
-// 2. Initialize Supabase
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
-);
-
-// --- ROUTES ---
-
-// TARGETED PAGER: Sends to a specific user_id
-app.post("/api/send-pager", async (req, res) => {
-  const { from_user_id, to_user_id, message_text } = req.body;
-
-  const { data: device, error: deviceError } = await supabase
-    .from('devices')
-    .select('fcm_token')
-    .eq('user_id', to_user_id)
-    .single();
-
-  if (deviceError || !device) {
-    return res.status(404).json({ error: "Recipient device not found" });
-  }
-
-  const payload = {
-    token: device.fcm_token,
-    notification: {
-      title: 'New Pager!',
-      body: message_text || 'Someone is paging you!',
-    },
-    data: { from_user_id: from_user_id || "anonymous" }
-  };
-
-  try {
-    await admin.messaging().send(payload);
-    res.json({ success: true, message: "Pager sent!" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+// ROOT ROUTE (To check if server is alive in browser)
+app.get("/", (req, res) => {
+    res.send("📟 PAGER KING SYSTEM: ONLINE");
 });
 
-// BROADCAST PAGER: Sends to EVERYONE in the devices table
+// THE BLAST ROUTE
 app.post("/api/blast-pager", async (req, res) => {
-  const { message_text } = req.body;
+    const { message_text } = req.body;
+    console.log("🚀 Blast Request Received!");
 
-  try {
-    // We fetch ALL tokens to ensure the test works!
-    const { data: devices, error } = await supabase
-      .from('devices')
-      .select('fcm_token');
+    try {
+        // Fetch all tokens from the devices table
+        const { data: devices, error } = await supabase
+            .from('devices')
+            .select('fcm_token');
 
-    if (error || !devices || devices.length === 0) {
-      return res.status(404).json({ error: "No devices found in DB" });
+        console.log("DB Data:", devices);
+        if (error) console.error("DB Error:", error);
+
+        if (error || !devices || devices.length === 0) {
+            return res.status(404).json({ error: "No devices found", details: error });
+        }
+
+        const tokens = devices.map(d => d.fcm_token).filter(t => t != null);
+        
+        const message = {
+            notification: {
+                title: '📟 PAGER KING',
+                body: message_text || 'Wake up!'
+            },
+            tokens: tokens,
+        };
+
+        const response = await admin.messaging().sendEachForMulticast(message);
+        console.log("Firebase Response:", response.successCount, "sent.");
+        
+        res.json({ success: true, sent: response.successCount });
+
+    } catch (err) {
+        console.error("Critical Crash:", err.message);
+        res.status(500).json({ error: err.message });
     }
-
-    const tokens = devices.map(d => d.fcm_token);
-
-    const message = {
-      notification: {
-        title: '📟 PAGER KING ALERT',
-        body: message_text || 'Emergency Broadcast!'
-      },
-      tokens: tokens,
-    };
-
-    const response = await admin.messaging().sendEachForMulticast(message);
-
-    res.json({ 
-      success: true, 
-      sent_count: response.successCount,
-      failure_count: response.failureCount 
-    });
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
 });
 
-// Health check
-app.get("/", (req, res) => res.send("📟 Pager King System: ONLINE"));
-
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Sucker running on port ${PORT}`);
+    console.log(`🚀 Sucker running on port ${PORT}`);
 });
